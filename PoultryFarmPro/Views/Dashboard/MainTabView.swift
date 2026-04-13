@@ -92,7 +92,7 @@ struct MoreView: View {
             .background(
                 NavigationLink(destination: destinationView(for: navPath.last), isActive: Binding(
                     get: { !navPath.isEmpty },
-                    set: { if !$0 { navPath.removeLast() } }
+                    set: { if !$0 { do { navPath.removeLast() } catch { } } }
                 )) { EmptyView() }
             )
         }
