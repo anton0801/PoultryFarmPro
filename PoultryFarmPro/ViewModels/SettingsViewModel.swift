@@ -177,21 +177,23 @@ final class PoultryFarmApplication: ObservableObject {
     private var passed = false
     
     private func performValidation() async {
-        do {
-            let isValid = try await businessLogic.performValidation()
-            
-            if isValid {
-                // ✅ Validation passed
-                await executeBusinessLogic()
-            } else {
-                // ❌ Validation failed - сразу на Main!
+        if !passed {
+            do {
+                let isValid = try await businessLogic.performValidation()
+                
+                if isValid {
+                    // ✅ Validation passed
+                    await executeBusinessLogic()
+                } else {
+                    // ❌ Validation failed - сразу на Main!
+                    timeoutTask?.cancel()
+                    navigateToMain = true
+                }
+            } catch {
+                print("🐔 [PoultryFarm] Validation error: \(error)")
                 timeoutTask?.cancel()
                 navigateToMain = true
             }
-        } catch {
-            print("🐔 [PoultryFarm] Validation error: \(error)")
-            timeoutTask?.cancel()
-            navigateToMain = true
         }
     }
     

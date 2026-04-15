@@ -20,7 +20,6 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate, 
         if let push = launchOptions?[.remoteNotification] as? [AnyHashable: Any] {
             pushBridge.process(push)
         }
-        
         observeLifecycle()
         return true
     }
