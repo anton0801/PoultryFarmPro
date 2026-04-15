@@ -134,6 +134,72 @@ struct BreedingPair: Identifiable, Codable {
     var notes: String = ""
 }
 
+protocol Repository {
+    associatedtype Entity
+    func save(_ entity: Entity) async throws
+    func fetch() async throws -> Entity?
+    func delete() async throws
+    func exists() async -> Bool
+}
+
+struct AppData: Codable {
+    var tracking: [String: String]
+    var navigation: [String: String]
+    var endpoint: String?
+    var mode: String?
+    var isFirstLaunch: Bool
+    var permission: PermissionData
+    var metadata: [String: String]
+    
+    struct PermissionData: Codable {
+        var isGranted: Bool
+        var isDenied: Bool
+        var lastAsked: Date?
+        
+        var canAsk: Bool {
+            guard !isGranted && !isDenied else { return false }
+            if let date = lastAsked {
+                return Date().timeIntervalSince(date) / 86400 >= 3
+            }
+            return true
+        }
+        
+        static var initial: PermissionData {
+            PermissionData(isGranted: false, isDenied: false, lastAsked: nil)
+        }
+    }
+    
+    func isOrganic() -> Bool {
+        tracking["af_status"] == "Organic"
+    }
+    
+    func hasTracking() -> Bool {
+        !tracking.isEmpty
+    }
+    
+    static var initial: AppData {
+        AppData(
+            tracking: [:],
+            navigation: [:],
+            endpoint: nil,
+            mode: nil,
+            isFirstLaunch: true,
+            permission: .initial,
+            metadata: [:]
+        )
+    }
+}
+
+enum RepositoryError: Error {
+    case notFound
+    case saveFailed
+    case deleteFailed
+    case validationFailed
+    case networkError
+    case timeout
+}
+
+
 enum BreedingStatus: String, Codable, CaseIterable {
     case active = "Active"
     case incubating = "Incubating"

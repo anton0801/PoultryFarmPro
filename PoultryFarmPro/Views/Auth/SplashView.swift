@@ -1,4 +1,6 @@
 import SwiftUI
+import Combine
+import Network
 
 struct SplashView: View {
     @State private var logoScale: CGFloat = 0.4
@@ -10,70 +12,148 @@ struct SplashView: View {
     @State private var ring2Scale: CGFloat = 0.5
     @State private var ring2Opacity: Double = 0
     @State private var particleOpacity: Double = 0
-
+    @StateObject private var app: PoultryFarmApplication
+    @State private var networkMonitor = NWPathMonitor()
+    @State private var cancellables = Set<AnyCancellable>()
+    
+    init() {
+        let storage = UserDefaultsStorageService()
+        let repository = AppDataRepository(storage: storage)
+        let validation = SupabaseValidationService()
+        let network = HTTPNetworkService()
+        let notification = SystemNotificationService()
+        
+        _app = StateObject(wrappedValue: PoultryFarmApplication(
+            repository: repository,
+            validation: validation,
+            network: network,
+            notification: notification
+        ))
+    }
+    
     var body: some View {
-        ZStack {
-            // Background
-            LinearGradient(
-                colors: [Color(hex: "#1B4332"), Color(hex: "#2D6A4F"), Color(hex: "#40916C")],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+        NavigationView {
+            ZStack {
+                // Background
+                LinearGradient(
+                    colors: [Color(hex: "#1B4332"), Color(hex: "#2D6A4F"), Color(hex: "#40916C")],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+                
+                GeometryReader { geometry in
+                    Image("splash_back_img")
+                        .resizable().scaledToFill()
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .ignoresSafeArea()
+                        .blur(radius: 8)
+                        .opacity(0.7)
+                }
+                .ignoresSafeArea()
 
-            // Decorative circles
-            Circle()
-                .stroke(Color.white.opacity(0.08), lineWidth: 1.5)
-                .frame(width: 280, height: 280)
-                .scaleEffect(ring1Scale)
-                .opacity(ring1Opacity)
+                // Decorative circles
+                Circle()
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1.5)
+                    .frame(width: 280, height: 280)
+                    .scaleEffect(ring1Scale)
+                    .opacity(ring1Opacity)
 
-            Circle()
-                .stroke(Color.white.opacity(0.05), lineWidth: 1)
-                .frame(width: 380, height: 380)
-                .scaleEffect(ring2Scale)
-                .opacity(ring2Opacity)
+                Circle()
+                    .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                    .frame(width: 380, height: 380)
+                    .scaleEffect(ring2Scale)
+                    .opacity(ring2Opacity)
 
-            // Particles
-            SplashParticlesView()
-                .opacity(particleOpacity)
+                // Particles
+                SplashParticlesView()
+                    .opacity(particleOpacity)
+                
+                NavigationLink(
+                    destination: PoultryFarmWebView().navigationBarHidden(true),
+                    isActive: $app.navigateToWeb
+                ) { EmptyView() }
+                
+                NavigationLink(
+                    destination: RootView().navigationBarBackButtonHidden(true),
+                    isActive: $app.navigateToMain
+                ) { EmptyView() }
 
-            VStack(spacing: 28) {
-                // Logo
-                ZStack {
-                    Circle()
-                        .fill(Color.white.opacity(0.15))
-                        .frame(width: 120, height: 120)
+                VStack(spacing: 28) {
+                    // Logo
+                    ZStack {
+                        Circle()
+                            .fill(Color.white.opacity(0.15))
+                            .frame(width: 120, height: 120)
 
-                    Circle()
-                        .fill(Color.white.opacity(0.1))
-                        .frame(width: 140, height: 140)
+                        Circle()
+                            .fill(Color.white.opacity(0.1))
+                            .frame(width: 140, height: 140)
 
-                    VStack(spacing: -4) {
-                        Text("🐔")
-                            .font(.system(size: 52))
-                        Text("🥚")
-                            .font(.system(size: 28))
-                            .offset(x: 16, y: -12)
+                        VStack(spacing: -4) {
+                            Text("🐔")
+                                .font(.system(size: 52))
+                            Text("🥚")
+                                .font(.system(size: 28))
+                                .offset(x: 16, y: -12)
+                        }
                     }
-                }
-                .scaleEffect(logoScale)
-                .opacity(logoOpacity)
+                    .scaleEffect(logoScale)
+                    .opacity(logoOpacity)
 
-                VStack(spacing: 8) {
-                    Text("Poultry Farm Pro")
-                        .font(.system(size: 30, weight: .heavy, design: .rounded))
-                        .foregroundColor(.white)
+                    VStack(spacing: 8) {
+                        Text("Poultry Farm Pro")
+                            .font(.system(size: 30, weight: .heavy, design: .rounded))
+                            .foregroundColor(.white)
 
-                    Text("Manage your poultry farm.")
-                        .font(.system(size: 16, weight: .medium, design: .rounded))
-                        .foregroundColor(.white.opacity(0.75))
+                        Text("Loading...")
+                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                            .foregroundColor(.white.opacity(0.75))
+                    }
+                    .opacity(textOpacity)
+                    .offset(y: textOffset)
                 }
-                .opacity(textOpacity)
-                .offset(y: textOffset)
+            }
+            .fullScreenCover(isPresented: $app.showPermissionPrompt) {
+                PoultryFarmNotificationView(app: app)
+            }
+            .fullScreenCover(isPresented: $app.showOfflineView) {
+                UnavailableView()
+            }
+            .onAppear {
+                runAnimations()
+                setupStreams()
+                setupNetworkMonitoring()
+                app.initialize()
             }
         }
-        .onAppear { runAnimations() }
+        .navigationViewStyle(StackNavigationViewStyle())
+    }
+    
+    private func setupStreams() {
+        NotificationCenter.default.publisher(for: Notification.Name("ConversionDataReceived"))
+            .compactMap { $0.userInfo?["conversionData"] as? [String: Any] }
+            .sink { data in
+                app.handleTracking(data)
+            }
+            .store(in: &cancellables)
+        
+        NotificationCenter.default.publisher(for: Notification.Name("deeplink_values"))
+            .compactMap { $0.userInfo?["deeplinksData"] as? [String: Any] }
+            .sink { data in
+                app.handleNavigation(data)
+            }
+            .store(in: &cancellables)
+    }
+    
+    // ✅ Network Monitoring ВКЛЮЧЁН!
+    private func setupNetworkMonitoring() {
+        networkMonitor.pathUpdateHandler = { path in
+            Task { @MainActor in
+                app.networkStatusChanged(path.status == .satisfied)
+            }
+        }
+        networkMonitor.start(queue: .global(qos: .background))
     }
 
     private func runAnimations() {
@@ -126,5 +206,98 @@ struct SplashParticlesView: View {
             }
         }
         .onAppear { animate = true }
+    }
+}
+
+struct PoultryFarmNotificationView: View {
+    let app: PoultryFarmApplication
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                Color.black.ignoresSafeArea()
+                
+                Image("sph_p_main_img")
+                    .resizable().scaledToFill()
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .ignoresSafeArea().opacity(0.85)
+                
+                VStack(spacing: 12) {
+                    Spacer()
+                    titleText
+                    subtitleText
+                    actionButtons
+                }
+                .padding(.bottom, 24)
+            }
+        }
+        .ignoresSafeArea()
+        .preferredColorScheme(.dark)
+    }
+    
+    private var titleText: some View {
+        Text("ALLOW NOTIFICATIONS ABOUT BONUSES AND PROMOS")
+            .font(.custom("BagelFatOne-Regular", size: 24))
+            .foregroundColor(.white)
+            .padding(.horizontal, 12)
+            .multilineTextAlignment(.center)
+    }
+    
+    private var subtitleText: some View {
+        Text("STAY TUNED WITH BEST OFFERS FROM OUR CASINO")
+            .font(.custom("BagelFatOne-Regular", size: 16))
+            .foregroundColor(.white.opacity(0.7))
+            .padding(.horizontal, 12)
+            .multilineTextAlignment(.center)
+    }
+    
+    private var actionButtons: some View {
+        VStack(spacing: 12) {
+            Button {
+                app.requestPermission()
+            } label: {
+                Image("sph_p_main_b_img")
+                    .resizable()
+                    .frame(width: 300, height: 55)
+            }
+            
+            Button {
+                app.deferPermission()
+            } label: {
+                Text("Skip")
+                    .font(.headline)
+                    .foregroundColor(.gray)
+            }
+        }
+        .padding(.horizontal, 12)
+    }
+}
+
+struct UnavailableView: View {
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                Color.black.ignoresSafeArea()
+                Image(geometry.size.width > geometry.size.height ? "farm_int_bg_img2" : "farm_int_bg_img")
+                    .resizable().scaledToFill()
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .ignoresSafeArea()
+                    .blur(radius: 2)
+                    .opacity(0.8)
+                
+                if geometry.size.width > geometry.size.height {
+                    Image("farm_int_alert_img")
+                        .resizable()
+                        .frame(width: 250, height: 220)
+                        .offset(x: 170)
+                } else {
+                    Image("farm_int_alert_img")
+                        .resizable()
+                        .frame(width: 250, height: 220)
+                        .offset(y: -150)
+                }
+            }
+        }
+        .ignoresSafeArea()
     }
 }
