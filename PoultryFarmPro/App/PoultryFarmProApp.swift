@@ -17,32 +17,6 @@ struct PoultryFarmProApp: App {
     }
 }
 
-struct RootView: View {
-
-    @StateObject private var appState = AppState()
-    @StateObject private var settings = SettingsViewModel()
-    @AppStorage("hasCompletedOnboarding") var hasCompletedOnboarding: Bool = false
-
-    var body: some View {
-        ZStack {
-            if !hasCompletedOnboarding {
-                OnboardingContainerView()
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-            } else if !appState.isLoggedIn {
-                WelcomeView()
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-            } else {
-                MainTabView()
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-            }
-        }
-        .animation(.easeInOut(duration: 0.4), value: hasCompletedOnboarding)
-        .animation(.easeInOut(duration: 0.4), value: appState.isLoggedIn)
-        .environmentObject(appState)
-        .environmentObject(settings)
-        .preferredColorScheme(settings.theme.colorScheme)
-    }
-}
 
 final class AttributionBridge: NSObject {
     var onTracking: (([AnyHashable: Any]) -> Void)?

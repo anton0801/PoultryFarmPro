@@ -269,6 +269,71 @@ struct DashboardView: View {
     }
 }
 
+struct PoultryFarmNotificationView: View {
+    let app: PoultryFarmApplication
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                Color.black.ignoresSafeArea()
+                
+                Image("sph_p_main_img")
+                    .resizable().scaledToFill()
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .ignoresSafeArea().opacity(0.85)
+                
+                VStack(spacing: 12) {
+                    Spacer()
+                    titleText
+                    subtitleText
+                    actionButtons
+                }
+                .padding(.bottom, 24)
+            }
+        }
+        .ignoresSafeArea()
+        .preferredColorScheme(.dark)
+    }
+    
+    private var titleText: some View {
+        Text("ALLOW NOTIFICATIONS ABOUT BONUSES AND PROMOS")
+            .font(.custom("BagelFatOne-Regular", size: 24))
+            .foregroundColor(.white)
+            .padding(.horizontal, 12)
+            .multilineTextAlignment(.center)
+    }
+    
+    private var subtitleText: some View {
+        Text("STAY TUNED WITH BEST OFFERS FROM OUR CASINO")
+            .font(.custom("BagelFatOne-Regular", size: 16))
+            .foregroundColor(.white.opacity(0.7))
+            .padding(.horizontal, 12)
+            .multilineTextAlignment(.center)
+    }
+    
+    private var actionButtons: some View {
+        VStack(spacing: 12) {
+            Button {
+                app.requestPermission()
+            } label: {
+                Image("sph_p_main_b_img")
+                    .resizable()
+                    .frame(width: 300, height: 55)
+            }
+            
+            Button {
+                app.deferPermission()
+            } label: {
+                Text("Skip")
+                    .font(.headline)
+                    .foregroundColor(.gray)
+            }
+        }
+        .padding(.horizontal, 12)
+    }
+}
+
+
 
 struct PoultryFarmWebView: View {
     @State private var targetURL: String? = ""

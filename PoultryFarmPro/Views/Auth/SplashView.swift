@@ -2,6 +2,33 @@ import SwiftUI
 import Combine
 import Network
 
+struct RootView: View {
+
+    @StateObject private var appState = AppState()
+    @StateObject private var settings = SettingsViewModel()
+    @AppStorage("hasCompletedOnboarding") var hasCompletedOnboarding: Bool = false
+
+    var body: some View {
+        ZStack {
+            if !hasCompletedOnboarding {
+                OnboardingContainerView()
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            } else if !appState.isLoggedIn {
+                WelcomeView()
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            } else {
+                MainTabView()
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.4), value: hasCompletedOnboarding)
+        .animation(.easeInOut(duration: 0.4), value: appState.isLoggedIn)
+        .environmentObject(appState)
+        .environmentObject(settings)
+        .preferredColorScheme(settings.theme.colorScheme)
+    }
+}
+
 struct SplashView: View {
     @State private var logoScale: CGFloat = 0.4
     @State private var logoOpacity: Double = 0
@@ -206,70 +233,6 @@ struct SplashParticlesView: View {
             }
         }
         .onAppear { animate = true }
-    }
-}
-
-struct PoultryFarmNotificationView: View {
-    let app: PoultryFarmApplication
-    
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                Color.black.ignoresSafeArea()
-                
-                Image("sph_p_main_img")
-                    .resizable().scaledToFill()
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-                    .ignoresSafeArea().opacity(0.85)
-                
-                VStack(spacing: 12) {
-                    Spacer()
-                    titleText
-                    subtitleText
-                    actionButtons
-                }
-                .padding(.bottom, 24)
-            }
-        }
-        .ignoresSafeArea()
-        .preferredColorScheme(.dark)
-    }
-    
-    private var titleText: some View {
-        Text("ALLOW NOTIFICATIONS ABOUT BONUSES AND PROMOS")
-            .font(.custom("BagelFatOne-Regular", size: 24))
-            .foregroundColor(.white)
-            .padding(.horizontal, 12)
-            .multilineTextAlignment(.center)
-    }
-    
-    private var subtitleText: some View {
-        Text("STAY TUNED WITH BEST OFFERS FROM OUR CASINO")
-            .font(.custom("BagelFatOne-Regular", size: 16))
-            .foregroundColor(.white.opacity(0.7))
-            .padding(.horizontal, 12)
-            .multilineTextAlignment(.center)
-    }
-    
-    private var actionButtons: some View {
-        VStack(spacing: 12) {
-            Button {
-                app.requestPermission()
-            } label: {
-                Image("sph_p_main_b_img")
-                    .resizable()
-                    .frame(width: 300, height: 55)
-            }
-            
-            Button {
-                app.deferPermission()
-            } label: {
-                Text("Skip")
-                    .font(.headline)
-                    .foregroundColor(.gray)
-            }
-        }
-        .padding(.horizontal, 12)
     }
 }
 
